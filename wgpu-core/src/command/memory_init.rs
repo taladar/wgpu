@@ -65,13 +65,24 @@ impl CommandBufferTextureMemoryActions {
         // We don't need to add MemoryInitKind::NeedsInitializedMemory to
         // init_actions if a surface is part of the discard list. But that would
         // mean splitting up the action which is more than we'd win here.
-        self.init_actions.extend(
-            action
-                .texture
-                .initialization_status
-                .read()
-                .check_action(action),
-        );
+        {
+            let status = action.texture.initialization_status.read();
+
+            // Fast path: a fully-initialized texture with no outstanding
+            // discards can never contribute an init action or an immediate
+            // clear, so skip the per-mip range walk in `check_action` and the
+            // discard scan below. This is the overwhelmingly common
+            // steady-state case (a texture uploaded once, then sampled every
+            // frame by every view) and this function is called once per texture
+            // use per draw per view, so the saved bookkeeping is significant.
+            // The result is identical to the slow path, which would extend
+            // nothing and retain every discard.
+            if self.discards.is_empty() && status.is_fully_initialized() {
+                return immediately_necessary_clears;
+            }
+
+            self.init_actions.extend(status.check_action(action));
+        }
 
         // We expect very few discarded surfaces at any point in time which is
         // why a simple linear search is likely best. (i.e. most of the time

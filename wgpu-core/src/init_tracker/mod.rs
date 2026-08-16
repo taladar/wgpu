@@ -185,6 +185,17 @@ where
         }
     }
 
+    /// Returns `true` if no part of the tracked resource is uninitialized.
+    ///
+    /// This is `O(1)`: the uninitialized-range list is empty exactly when the
+    /// whole resource is initialized (a fully-initialized resource drains its
+    /// last range, an untouched one holds a single `0..size` range). It backs
+    /// the fast path in texture memory-init registration, which runs once per
+    /// resource use per draw per view.
+    pub(crate) fn is_fully_initialized(&self) -> bool {
+        self.uninitialized_ranges.is_empty()
+    }
+
     /// Checks for uninitialized ranges within a given query range.
     ///
     /// If `query_range` includes any uninitialized portions of this init
