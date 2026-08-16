@@ -62,6 +62,17 @@ impl TextureInitTracker {
         }
     }
 
+    /// Returns `true` if every mip level and layer is initialized, so no use of
+    /// this texture can require an init action.
+    ///
+    /// Fast path for [`check_action`](Self::check_action) on textures written
+    /// once and then sampled every frame by every view (the steady-state common
+    /// case): each mip's check is an `O(1)` empty-list test, short-circuiting on
+    /// the first uninitialized mip.
+    pub(crate) fn is_fully_initialized(&self) -> bool {
+        self.mips.iter().all(|mip| mip.is_fully_initialized())
+    }
+
     pub(crate) fn check_action(
         &self,
         action: &TextureInitTrackerAction,
